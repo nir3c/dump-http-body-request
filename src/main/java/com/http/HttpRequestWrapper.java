@@ -16,38 +16,36 @@ import java.io.*;
  */
 public class HttpRequestWrapper extends HttpServletRequestWrapper {
 
-    private byte[] rawData;
+    private File file;
     private InputStreamWrapper servletStream;
 
-    public HttpRequestWrapper(HttpServletRequest request) {
-        super(request);
+    public HttpRequestWrapper(HttpServletRequest servletRequest, File file) throws IOException {
+        super(servletRequest);
+        this.file = file;
     }
 
 
     @Override
     public ServletInputStream getInputStream() throws IOException {
-        if (rawData == null)
-            rawData = IOUtils.toByteArray(this.getRequest().getReader());
         resetInputStream();
         return servletStream;
     }
 
     @Override
     public BufferedReader getReader() throws IOException {
-        if (rawData == null)
-            rawData = IOUtils.toByteArray(this.getRequest().getReader());
         resetInputStream();
         return new BufferedReader(new InputStreamReader(servletStream));
     }
 
-    private void resetInputStream() {
-        servletStream = new InputStreamWrapper(new ByteArrayInputStream(rawData));
+    private void resetInputStream() throws FileNotFoundException {
+        servletStream = new InputStreamWrapper(new FileInputStream(file));
     }
 
     private class InputStreamWrapper extends ServletInputStream {
 
-        private ByteArrayInputStream stream;
-        InputStreamWrapper(ByteArrayInputStream stream) {
+        private InputStream stream;
+
+        InputStreamWrapper(InputStream stream) {
             this.stream = stream;
         }
 
@@ -58,7 +56,16 @@ public class HttpRequestWrapper extends HttpServletRequestWrapper {
 
         @Override
         public boolean isFinished() {
-            return stream.available() == 0;
+            try {
+                return stream.available() == 0;
+            } catch (Exception e) {
+                System.out.println("[InputStreamWrapper.isFinished] ERROR: ");
+                e.printStackTrace();
+                try {
+                    stream.close();
+                }catch (Exception ignored){}
+                return true;
+            }
         }
 
         @Override
@@ -69,6 +76,16 @@ public class HttpRequestWrapper extends HttpServletRequestWrapper {
         @Override
         public void setReadListener(ReadListener readListener) {
             throw new UnsupportedOperationException("Not implemented");
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                stream.close();
+            } catch (Exception e){
+                System.out.println("[InputStreamWrapper.close] ERROR: ");
+                e.printStackTrace();
+            }
         }
     }
 
